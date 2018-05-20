@@ -1,16 +1,15 @@
-import os
+import os,hashlib
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 
 class Config:
-    SECRET_KEY = os.environ.get('SECRET_KEY', '<hard-to-guess-string>')
+    SECRET_KEY = os.environ.get('SECRET_KEY', str(hashlib.sha256('<hard-to-guess-string>').hexdigest().decode()))
     SESSION_PROTECTION = 'basic'
     THEME = os.environ.get('THEME', 'gray')
     SSL_REDIRECT = bool(os.environ.get('SSL_REDIRECT', ''))
 
     SQLALCHEMY_COMMIT_ON_TEARDOWN = True
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', "postgres+psycopg2://n1ght0wl:1234@localhost/pitches")
 
     MQ_USER = os.environ.get('MQ_USER', 'guest')
     MQ_PASSWORD = os.environ.get('MQ_PASSWORD', 'password')
@@ -66,12 +65,14 @@ class Config:
         pass
 
 class DevConfig(Config):
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', "postgres+psycopg2://n1ght0wl:1234@localhost/pitches")
     DEBUG = True
     DEBUG_TB_INTERCEPT_REDIRECTS = False
     TESTING = True
 
 
 class ProdConfig(Config):
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "postgres+psycopg2://n1ght0wl:1234@localhost/pitches")
     DEBUG = False
     TESTING = False
     DEBUG_TB_INTERCEPT_REDIRECTS = False
@@ -82,4 +83,4 @@ config_options = {
 'default':DevConfig
 }
 
-config = DevConfig()
+config = ProdConfig()
