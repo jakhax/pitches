@@ -446,3 +446,53 @@ def change_favorites(topic_id):
 
     return redirect(request.args.get('next') or url_for('main.topic', topic_id=topic_id))
 
+
+#edit comment
+@main.route('/edit_comment/<int:comment_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required(Permission.WRITE)
+def edit_comment(comment_id):
+    comment = Comment.query.filter_by(id=comment_id, deleted=False).first_or_404()
+    if current_user != comment.author and not current_user.is_moderator():
+        abort(403)
+
+    form = CommentEditForm()
+
+    if form.submit.data and form.validate_on_submit():
+        comment.body = form.body.data
+        comment.updated_at = datetime.utcnow()
+        db.session.add(comment)
+        flash(lazy_gettext('The comment has been updated.'))
+        return redirect(request.args.get('next') or url_for('main.topic', topic_id=comment.topic_id))
+
+    elif form.cancel.data:
+        flash(lazy_gettext('Comment editing was cancelled.'))
+        return redirect(request.args.get('next') or url_for('main.topic', topic_id=comment.topic_id))
+
+    elif form.delete.data:
+        comment.deleted = True
+        comment.updated_at = datetime.utcnow()
+        db.session.add(comment)
+        flash(lazy_gettext('The comment has been deleted.'))
+        return redirect(request.args.get('next') or url_for('main.topic', topic_id=comment.topic_id))
+
+    if not form.is_submitted():
+        form.body.data = comment.body
+
+    return render_template('edit_comment.html', form=form, comment=comment)
+
+#downvote / upvote a pitch
+@main.route('/topic/<int:topic_id>/vote/<int:answer_id>', methods=['POST'])
+@login_required
+@permission_required(Permission.PARTICIPATE)
+def vote(topic_id, answer_id):
+    form = FlaskForm()
+    if form.validate_on_submit():
+        answer = PollAnswer.query.filter_by(id=answer_id, topic_id=topic_id, deleted=False).first_or_404()
+        if current_user.get_vote(answer.topic):
+            flash(lazy_gettext('You have already voted for this poll.'))
+        else:
+            answer.topic.add_vote(current_user, answer)
+            flash(lazy_gettext('Your vote has been taken.'))
+    return redirect(request.args.get('next') or url_for('main.topic', topic_id=topic_id))
+
