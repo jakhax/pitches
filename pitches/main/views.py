@@ -625,3 +625,17 @@ def participation():
 
 
 
+#set language
+@main.route('/set_locale')
+def set_locale():
+    locale = request.args.get('locale', current_app.config['BABEL_DEFAULT_LOCALE'], type=str)
+    session['locale'] = locale
+    return redirect(request.args.get('next') or url_for('main.index'))
+
+
+@babel.localeselector
+def get_locale():
+    locale = session.get('locale', None)
+    if locale:
+        return locale
+    return request.accept_languages.best_match(current_app.config['SUPPORTED_LANGUAGES'].keys())
