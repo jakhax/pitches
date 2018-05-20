@@ -356,3 +356,93 @@ def edit_profile_admin(user_id):
 
     return render_template('edit_profile.html', form=form, user=user)
 
+#latest pitches
+@main.route('/latest')
+def latest():
+    page_arg = request.args.get('page', 1, type=int)
+    target_arg = request.args.get('target', 'topics', type=str)
+
+    if target_arg == 'topics':
+        pagination = Topic.query.with_entities(
+            Topic, User,
+            func.sum(case([(Comment.deleted == False, 1)], else_=0)),
+            func.max(case([(Comment.deleted == False, Comment.created_at)], else_=None))
+            ).join(User, Topic.author_id == User.id).outerjoin(
+            Comment, Topic.id == Comment.topic_id).filter(Topic.deleted == False).group_by(Topic.id, User.id).order_by(
+            Topic.created_at.desc()).paginate(
+            page_arg, per_page=current_app.config['TOPICS_PER_PAGE'], error_out=True)
+    elif target_arg == 'comments':
+        pagination = Comment.query.with_entities(
+            Comment, User, Topic).join(User, Comment.author_id == User.id).join(
+            Topic, Comment.topic_id == Topic.id).filter(Comment.deleted == False).order_by(
+            Comment.created_at.desc()).paginate(
+            page_arg, per_page=current_app.config['COMMENTS_PER_PAGE'], error_out=True)
+    else:
+        abort(400)
+
+    return render_template('latest.html', target=target_arg, items=pagination.items, pagination=pagination)
+
+#trending pitches
+@main.route('/hot')
+def hot():
+    page_arg = request.args.get('page', 1, type=int)
+    period_arg = request.args.get('period', 'week', type=str)
+
+    now = datetime.utcnow()
+    periods = {
+        'day': (now - timedelta(days=1), now),
+        'week': (now - timedelta(days=7), now),
+        'month': (now - timedelta(days=30), now),
+        'year': (now - timedelta(days=365), now),
+    }
+
+    pagination = Topic.query.with_entities(
+        Topic, User,
+        func.sum(case([(Comment.deleted == False, 1)], else_=0)),
+        func.max(case([(Comment.deleted == False, Comment.created_at)], else_=None))
+        ).join(User, Topic.author_id == User.id).outerjoin(
+        Comment, Topic.id == Comment.topic_id).filter(
+        and_(Topic.deleted == False, between(Topic.created_at, periods[period_arg][0], periods[period_arg][1]))
+        ).group_by(Topic.id, User.id).order_by(Topic.interest.desc()).paginate(
+        page_arg, per_page=current_app.config['TOPICS_PER_PAGE'], error_out=True)
+
+    return render_template('hot.html', period=period_arg, topics=pagination.items, pagination=pagination)
+
+#favourites pitches and add pitch to favourites
+@main.route('/favorites')
+@login_required
+def view_favorites():
+    page_arg = request.args.get('page', 1, type=int)
+
+    comments_count = func.sum(case([(Comment.deleted == False, 1)], else_=0))
+    last_commented = func.max(case([(Comment.deleted == False, Comment.created_at)], else_=Topic.created_at))
+
+    pagination = Topic.query.with_entities(
+        Topic, User, comments_count, last_commented
+        ).join(User, Topic.author_id == User.id).join(
+        Favorite, and_(Favorite.topic_id == Topic.id, Favorite.user_id == current_user.id)
+        ).outerjoin(Comment, Topic.id == Comment.topic_id).filter(Topic.deleted == False).group_by(
+        Topic.id, User.id).order_by(last_commented.desc()).paginate(
+        page_arg, per_page=current_app.config['TOPICS_PER_PAGE'], error_out=True)
+
+    return render_template('favorites.html', topics=pagination.items, pagination=pagination)
+
+
+@main.route('/topic/<int:topic_id>/favorite', methods=['POST'])
+@login_required
+def change_favorites(topic_id):
+    form = FlaskForm()
+    if form.validate_on_submit():
+        tpc = Topic.query.filter_by(id=topic_id, deleted=False).first_or_404()
+        tpc_in_favorites = Favorite.query.filter_by(topic_id=tpc.id, user_id=current_user.id).first()
+
+        if tpc_in_favorites:
+            db.session.delete(tpc_in_favorites)
+            flash(lazy_gettext('The pitch has been deleted from favorites.'))
+        else:
+            new_favorite = Favorite(topic_id=tpc.id, user_id=current_user.id)
+            db.session.add(new_favorite)
+            flash(lazy_gettext('The pitch has been added to favorites.'))
+
+    return redirect(request.args.get('next') or url_for('main.topic', topic_id=topic_id))
+
