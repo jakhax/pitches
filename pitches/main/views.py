@@ -181,4 +181,94 @@ def edit_topic(topic_id):
 
     return render_template('edit_topic.html', form=form, topic=tpc)
 
+#topic group creation/edit by admin
+@main.route('/topic_group/<int:topic_group_id>')
+def topic_group(topic_group_id):
+    if topic_group_id == current_app.config['ROOT_TOPIC_GROUP']:
+        return redirect(url_for('main.index'))
+    t_group, t_groups, pagination = get_topic_group(topic_group_id)
+    print(pagination.items)
+    return render_template('topic_group.html', topic_group=t_group, topic_groups=t_groups, topics=pagination.items,
+                           pagination=pagination)
+
+
+@main.route('/create_topic_group/<int:topic_group_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required(Permission.MODERATE)
+def create_topic_group(topic_group_id):
+    t_group = TopicGroup.query.get_or_404(topic_group_id)
+
+    form = TopicGroupForm()
+    form.remove_edit_fields()
+
+    if form.submit.data and form.validate_on_submit():
+        if form.priority.data not in current_app.config['TOPIC_GROUP_PRIORITY']:
+            abort(404)
+        new_t_group = TopicGroup(title=form.title.data, priority=form.priority.data, protected=form.protected.data,
+                                 author=current_user._get_current_object(), group=t_group)
+        db.session.add(new_t_group)
+        db.session.commit()
+        flash(lazy_gettext('The pitch group has been created.'))
+        return redirect(url_for('main.topic_group', topic_group_id=new_t_group.id))
+
+    elif form.cancel.data:
+        flash(lazy_gettext('pitch group creation was cancelled.'))
+        return redirect(url_for('main.topic_group', topic_group_id=topic_group_id))
+
+    return render_template('create_topic_group.html', form=form, topic_group=t_group)
+
+
+@main.route('/edit_topic_group/<int:topic_group_id>', methods=['GET', 'POST'])
+@login_required
+@permission_required(Permission.MODERATE)
+def edit_topic_group(topic_group_id):
+    t_group = TopicGroup.query.filter_by(id=topic_group_id, deleted=False).first_or_404()
+
+    form = TopicGroupForm()
+    if t_group.is_root_topic_group():
+        del form.title
+        del form.priority
+        del form.group_id
+        del form.delete
+
+    if form.submit.data and form.validate_on_submit():
+        if form.priority and form.priority.data not in current_app.config['TOPIC_GROUP_PRIORITY']:
+            abort(404)
+        if form.title:
+            t_group.title = form.title.data
+        if form.group_id:
+            t_group.group_id = form.group_id.data
+        if form.priority:
+            t_group.priority = form.priority.data
+        t_group.protected = form.protected.data
+        t_group.updated_at = datetime.utcnow()
+        db.session.add(t_group)
+        flash(lazy_gettext('The pitch group has been updated.'))
+        return redirect(url_for('main.topic_group', topic_group_id=topic_group_id))
+
+    elif form.cancel.data:
+        flash(lazy_gettext('pitch group editing was cancelled.'))
+        return redirect(url_for('main.topic_group', topic_group_id=topic_group_id))
+
+    elif form.delete and form.delete.data:
+        if t_group.topics.filter_by(deleted=False).first() or t_group.topic_groups.filter_by(deleted=False).first():
+            flash(lazy_gettext('The pitch group is not deleted. Only empty pitch group can be deleted.'))
+            return redirect(url_for('main.topic_group', topic_group_id=topic_group_id))
+        else:
+            t_group.deleted = True
+            t_group.updated_at = datetime.utcnow()
+            db.session.add(t_group)
+            flash(lazy_gettext('The pitch group has been deleted.'))
+            return redirect(url_for('main.topic_group', topic_group_id=t_group.group_id))
+
+    if not form.is_submitted():
+        if form.title:
+            form.title.data = t_group.title
+        if form.group_id:
+            form.group_id.data = t_group.group_id
+        if form.priority:
+            form.priority.data = t_group.priority
+        form.protected.data = t_group.protected
+
+    return render_template('edit_topic_group.html', form=form, topic_group=t_group)
 
