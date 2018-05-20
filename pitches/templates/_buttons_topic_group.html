@@ -1,0 +1,30 @@
+{% if (not topic_group.protected and current_user.can(Permission.WRITE)) or not topic_group.is_root_topic_group() or current_user.is_moderator() %}
+<div class="buttons-panel">
+    <div class="right-buttons">
+        {% if current_user.is_moderator() %}
+        <a class="btn btn-success btn-sm" href="{{ url_for('main.create_topic_group', topic_group_id=topic_group.id) }}">
+            <span class="glyphicon glyphicon-exclamation-sign"></span> {{ _('Create pitch group') }}
+        </a>
+        <a class="btn btn-warning btn-sm" href="{{ url_for('main.edit_topic_group', topic_group_id=topic_group.id) }}">
+            <span class="glyphicon glyphicon-exclamation-sign"></span> {{ _('Edit topic group') }}
+        </a>
+        {% endif %}
+        {% if not topic_group.protected and current_user.can(Permission.WRITE) %}
+        <a class="btn btn-success btn-sm" href="{{ url_for('main.create_topic', topic_group_id=topic_group.id) }}">
+            <span class="glyphicon glyphicon-plus-sign"></span> {{ _('Create pitch') }}
+        </a>
+        {% elif current_user.is_moderator() %}
+        <a class="btn btn-success btn-sm" href="{{ url_for('main.create_topic', topic_group_id=topic_group.id) }}">
+            <span class="glyphicon glyphicon-exclamation-sign"></span> {{ _('Create pitch') }}
+        </a>
+        {% endif %}
+    </div>
+    {% if not topic_group.is_root_topic_group() %}
+    <div>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('main.topic_group', topic_group_id=topic_group.group_id) }}">
+            <span class="glyphicon glyphicon-level-up"></span> {{ _('Up') }}
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
