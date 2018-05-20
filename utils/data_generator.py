@@ -101,10 +101,11 @@ def generate_fake_polls(polls_count=40, answers_per_poll=4):
     seed()
     for i in range(polls_count):
         t = Topic.query.filter_by(poll=None).order_by(func.random()).first()
-        t.poll = forgery_py.lorem_ipsum.sentence()[:256][:-1] + '?'
-        for j in range(answers_per_poll):
+        t.poll = "Rank"
+        answers_per_poll=["Upvote","Downvote"]
+        for j in answers_per_poll:
             pa = PollAnswer(topic_id=t.id,
-                            body=forgery_py.lorem_ipsum.sentence())
+                            body=j)
             db.session.add(pa)
     db.session.commit()
 
