@@ -64,6 +64,18 @@ class Role(db.Model):
         return '<Role %r>' % self.name
 
 
+class Message(db.Model):
+    __tablename__ = 'messages'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(128))
+    body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, index=True, default=func.now())
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), index=True)
+    author_deleted = db.Column(db.Boolean, index=True, default=False)
+    receiver_deleted = db.Column(db.Boolean, index=True, default=False)
+    unread = db.Column(db.Boolean, index=True, default=True)
 
 
 class User(UserMixin, db.Model):
@@ -213,3 +225,129 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
+class Topic(db.Model):
+    __tablename__ = 'topics'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(128))
+    body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, index=True, default=func.now())
+    updated_at = db.Column(db.DateTime, default=func.now())
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    group_id = db.Column(db.Integer, db.ForeignKey('topic_groups.id'), index=True)
+    deleted = db.Column(db.Boolean, index=True, default=False)
+    comments = db.relationship('Comment', backref='topic', lazy='dynamic')
+    poll = db.Column(db.String(256))
+    poll_answers = db.relationship('PollAnswer', backref='topic', lazy='dynamic')
+    poll_votes = db.relationship('PollVote', backref='topic', lazy='dynamic')
+    interest = db.Column(db.Integer, default=0)
+
+    @property
+    def comments_count(self):
+        return db.session.query(
+            func.count(Comment.id)).filter(and_(Comment.topic_id == self.id, Comment.deleted == False)).scalar()
+
+    def get_poll_results(self):
+        votes = db.session.query(PollAnswer.body, func.count(PollVote.id)).outerjoin(
+            PollVote, PollAnswer.id == PollVote.poll_answer_id).filter(
+            and_(PollAnswer.topic_id == self.id, PollAnswer.deleted == False)).filter(
+            or_(PollVote.deleted.is_(None), PollVote.deleted == False)).group_by(PollAnswer.body).all()
+        total_votes = float(sum([v[1] for v in votes]))
+        poll_results = [(v[0], v[1], round(float(v[1])/total_votes, 4)*100) for v in votes]
+        return sorted(poll_results, key=lambda v: v[1], reverse=True)
+
+    def update_poll_answers(self, new_answers):
+        old_answers = self.poll_answers.all()
+        for answer in [a for a in old_answers if a.body not in new_answers]:
+            answer.poll_votes.update(dict(deleted=True))
+            answer.deleted = True
+            db.session.add(answer)
+        old_answers_bodies = [a.body for a in old_answers]
+        for answer in [a for a in new_answers if a not in old_answers_bodies]:
+            db.session.add(PollAnswer(topic_id=self.id, body=answer))
+
+    def add_vote(self, user, answer):
+        new_vote = PollVote(topic_id=self.id, poll_answer_id=answer.id, author_id=user.id)
+        db.session.add(new_vote)
+        self.interest += 1
+        db.session.add(self)
+
+    def add_comment(self, user, comment):
+        new_comment = Comment(body=comment, author_id=user.id, topic_id=self.id)
+        db.session.add(new_comment)
+        self.interest += 1
+        db.session.add(self)
+
+
+class TopicGroup(db.Model):
+    __tablename__ = 'topic_groups'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(64))
+    priority = db.Column(db.Integer, default=config.TOPIC_GROUP_PRIORITY[-1])
+    protected = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, index=True, default=func.now())
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    group_id = db.Column(db.Integer, db.ForeignKey('topic_groups.id'), index=True)
+    updated_at = db.Column(db.DateTime, default=func.now())
+    deleted = db.Column(db.Boolean, index=True, default=False)
+    topics = db.relationship('Topic', backref='group', lazy='dynamic')
+    topic_groups = db.relationship('TopicGroup', backref=db.backref('group', remote_side=id), lazy='dynamic')
+
+    @staticmethod
+    def insert_root_topic_group():
+        topic_group = TopicGroup.query.get(config.ROOT_TOPIC_GROUP)
+        if topic_group:
+            topic_group.priority = config.TOPIC_GROUP_PRIORITY[0]
+            topic_group.protected = config.IS_PROTECTED_ROOT_TOPIC_GROUP
+        else:
+            topic_group = TopicGroup(id=config.ROOT_TOPIC_GROUP,
+                                     title='root topic group',
+                                     priority=config.TOPIC_GROUP_PRIORITY[0],
+                                     protected=config.IS_PROTECTED_ROOT_TOPIC_GROUP)
+        db.session.add(topic_group)
+        db.session.commit()
+
+    def is_root_topic_group(self):
+        return self.id == current_app.config['ROOT_TOPIC_GROUP']
+
+
+class Comment(db.Model):
+    __tablename__ = 'comments'
+    id = db.Column(db.Integer, primary_key=True)
+    body = db.Column(db.Text)
+    body_html = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, index=True, default=func.now())
+    updated_at = db.Column(db.DateTime, default=func.now())
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), index=True)
+    deleted = db.Column(db.Boolean, index=True, default=False)
+
+
+class PollAnswer(db.Model):
+    __tablename__ = 'polls_answers'
+    id = db.Column(db.Integer, primary_key=True)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), index=True)
+    body = db.Column(db.Text)
+    deleted = db.Column(db.Boolean, index=True, default=False)
+    poll_votes = db.relationship('PollVote', backref='poll_answer', lazy='dynamic')
+
+
+class PollVote(db.Model):
+    __tablename__ = 'polls_votes'
+    id = db.Column(db.Integer, primary_key=True)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), index=True)
+    poll_answer_id = db.Column(db.Integer, db.ForeignKey('polls_answers.id'), index=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    created_at = db.Column(db.DateTime, default=func.now())
+    deleted = db.Column(db.Boolean, index=True, default=False)
+
+
+class Favorite(db.Model):
+    __tablename__ = 'favorites'
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True, index=True)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), primary_key=True, index=True)
+
+
+db.event.listen(Message.body, 'set', on_changed_body_set_body_html)
+db.event.listen(Topic.body, 'set', on_changed_body_set_body_html)
+db.event.listen(Comment.body, 'set', on_changed_body_set_body_html)
