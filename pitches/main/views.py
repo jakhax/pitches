@@ -272,3 +272,87 @@ def edit_topic_group(topic_group_id):
 
     return render_template('edit_topic_group.html', form=form, topic_group=t_group)
 
+# view user profile, edit profile, admin edit profile
+@main.route('/user/<username>')
+@login_required
+def user(username):
+    user = User.query.filter_by(username_normalized=username.lower()).first_or_404()
+
+    page = request.args.get('page', 1, type=int)
+    pagination = Topic.query.with_entities(
+        Topic, User,
+        func.sum(case([(Comment.deleted == False, 1)], else_=0)),
+        func.max(case([(Comment.deleted == False, Comment.created_at)], else_=None))
+        ).join(User, Topic.author_id == User.id).outerjoin(
+        Comment, Topic.id == Comment.topic_id).filter(
+        and_(Topic.author_id == user.id, Topic.deleted == False)).group_by(Topic.id, User.id).order_by(
+        Topic.created_at.desc()).paginate(page, per_page=current_app.config['TOPICS_PER_PAGE'], error_out=True)
+
+    topics_count = db.session.query(func.count(Topic.id)).filter(
+        and_(Topic.author_id == user.id, Topic.deleted == False)).scalar()
+    comments_count = db.session.query(func.count(Comment.id)).filter(
+        and_(Comment.author_id == user.id, Comment.deleted == False)).scalar()
+
+    return render_template('user.html', user=user, topics=pagination.items, pagination=pagination,
+                           topics_count=topics_count, comments_count=comments_count)
+
+
+@main.route('/edit_profile', methods=['GET', 'POST'])
+@login_required
+@permission_required(Permission.WRITE)
+def edit_profile():
+    form = EditProfileForm()
+
+    if form.validate_on_submit():
+        current_user.name = form.name.data
+        current_user.homeland = form.homeland.data
+        current_user.about = form.about.data
+        current_user.avatar = form.avatar.data if form.avatar.data else current_user.gravatar()
+        current_user.updated_at = datetime.utcnow()
+        db.session.add(current_user)
+        flash(lazy_gettext('Your profile has been updated.'))
+        return redirect(url_for('main.user', username=current_user.username))
+
+    if not form.is_submitted():
+        form.name.data = current_user.name
+        form.homeland.data = current_user.homeland
+        form.about.data = current_user.about
+        form.avatar.data = current_user.avatar
+
+    return render_template('edit_profile.html', form=form)
+
+
+@main.route('/edit_profile/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def edit_profile_admin(user_id):
+    user = User.query.get_or_404(user_id)
+    form = EditProfileAdminForm(user=user)
+
+    if form.validate_on_submit():
+        user.email = form.email.data
+        user.username = form.username.data
+        user.username_normalized = form.username.data.lower()
+        user.confirmed = form.confirmed.data
+        user.role = Role.query.get(form.role.data)
+        user.name = form.name.data
+        user.homeland = form.homeland.data
+        user.about = form.about.data
+        user.avatar = form.avatar.data if form.avatar.data else user.gravatar()
+        user.updated_at = datetime.utcnow()
+        db.session.add(user)
+        flash(lazy_gettext('The profile has been updated.'))
+        return redirect(url_for('main.user', username=user.username))
+
+    if not form.is_submitted():
+        form.email.data = user.email
+        form.username.data = user.username
+        form.confirmed.data = user.confirmed
+        form.role.data = user.role_id
+        form.name.data = user.name
+        form.homeland.data = user.homeland
+        form.about.data = user.about
+        form.avatar.data = user.avatar
+
+    return render_template('edit_profile.html', form=form, user=user)
+
