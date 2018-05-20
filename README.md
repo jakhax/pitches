@@ -4,7 +4,7 @@ Pitches
 - - - -
 Author: [Jack Ogina](https://github.com/jakhax)
 ## Description
-[Pitches](https://github.com/jakhax/pitches.git) is a create an application that allows users to use that one minute wisely. The users will submit their one minute pitches and other users will vote on them and leave comments to give their feedback on them.
+[Pitches](https://github.com/jakhax/pitches.git) is a web application that allows users to use that one minute wisely. The users will submit their one minute pitches and other users will vote on them and leave comments to give their feedback on them.
 The pitches are organized by category. You can have different categories like pickup lines, interview pitch , product pitch, promotion pitch.
 
 ------------------------------------------------------------------------
@@ -34,7 +34,7 @@ The pitches are organized by category. You can have different categories like pi
 + [ ] Multiple language support using [flask-babel](https://pythonhosted.org/Flask-Babel/)
 
 ## Specifications
-[Specifications file](https://github.com/jakhax/pitches/master/specs.md)
+[Specifications file](https://github.com/jakhax/pitches/blob/master/specs.md)
 
 ## Quickstart
 ```
@@ -164,12 +164,19 @@ Run server
 ```bash
 python manage.py runserver -h 0.0.0.0 -p 8000
 ```
-
+### Deploying to heroku
+Set the configuration to production mode
+```bash
+heroku create appname
+heroku heroku addons:create heroku-postgresql
+git push heroku master
+heroku run python2.7 manage.py db upgrade
+```
 
 ## Live Demo
 
 The web app can be accessed from the following link
-[https://pitch3s.herokuapp.com/](https://pitch3s.herokuapp.com/)
+[https://pitch3es.herokuapp.com/](https://pitch3es.herokuapp.com/)
 
 
 ## Technology used
@@ -182,7 +189,7 @@ The web app can be accessed from the following link
 
 ## Contributing
 
-- Git clone [https://github.com/jakhax/news-Highlight.git](https://github.com/jakhax/news-Highlight.git) 
+- Git clone [https://github.com/jakhax/pitches.git](https://github.com/jakhax/pitches.git) 
 - Make the changes.
 - Write your tests on `tests/`
 - If everything is OK. push your changes and make a pull request.
