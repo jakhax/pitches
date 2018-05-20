@@ -1,0 +1,47 @@
+{% if topics %}
+<ul class="topics">
+    {% for topic, author, comments_count, last_comment_at in topics %}
+    <li class="topic img-rounded">
+        <div>
+            <a href="{{ url_for('main.user', username=author.username) }}">
+                <img class="img-rounded common-thumbnail" src="{{ author.avatar }}">
+            </a>
+        </div>
+        <div class="topic-info-row">
+            <div class="topic-info-col-l">
+                <div class="topic-info-author">
+                    <a href="{{ url_for('main.user', username=author.username) }}">{{ author.username }}</a>
+                </div>
+                <div class="topic-info-title">
+                    <a href="{{ url_for('main.topic', topic_id=topic.id) }}">{{ topic.title }}</a>
+                </div>
+                <div class="topic-info-date">
+                    {% if last_comment_at and last_comment_at != topic.created_at %}
+                    <a href="{{ url_for('main.topic', topic_id=topic.id, page=-1, _anchor='comment-last') }}">
+                        {{ _('Last comment') }}: {{ format_timedelta(last_comment_at) }} {{ _('ago') }}
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="topic-info-col-r">
+                <div class="topic-info-date">
+                    {{ _('Created') }}: {{ format_datetime(topic.created_at, 'd MMMM YYYY') }}
+                </div>
+                {% if topic.created_at != topic.updated_at %}
+                <div class="topic-info-date">
+                    {{ _('Updated') }}: {{ format_datetime(topic.updated_at, 'd MMMM YYYY') }}
+                </div>
+                {% endif %}
+                <div class="topic-info-comments">
+                    <a class="no-underline" href="{{ url_for('main.topic', topic_id=topic.id, _anchor='comments') }}">
+                        <span class="label label-primary topic-info-comments">{{ _('Comments') }}: {{ comments_count }}</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="no-data-text">{{ _('Topics not found') }}</div>
+{% endif %}
