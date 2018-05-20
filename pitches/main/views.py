@@ -583,3 +583,45 @@ def send_message(username):
 
     return render_template('send_message.html', form=form, receiver=receiver)
 
+#search for users
+@main.route('/community', methods=['GET', 'POST'])
+@login_required
+def community():
+    form = SearchForm()
+
+    if form.validate_on_submit():
+        page = 1
+        search_str = '%{}%'.format(form.text.data.lower())
+        pagination = User.query.order_by(User.id.asc()).filter(
+            or_(User.username_normalized.like(search_str), func.lower(User.name).like(search_str))).paginate(
+            page, per_page=current_app.config['USERS_PER_PAGE'], error_out=True)
+    else:
+        page = request.args.get('page', 1, type=int)
+        pagination = User.query.order_by(User.id.asc()).paginate(
+            page, per_page=current_app.config['USERS_PER_PAGE'], error_out=True)
+
+    return render_template('community.html', form=form, users=pagination.items, pagination=pagination)
+
+
+
+#show participations
+@main.route('/participation')
+@login_required
+def participation():
+    page_arg = request.args.get('page', 1, type=int)
+
+    comments_count = func.sum(case([(Comment.deleted == False, 1)], else_=0))
+    last_commented = func.max(case([(Comment.deleted == False, Comment.created_at)], else_=Topic.created_at))
+
+    pagination = Topic.query.with_entities(
+        Topic, User, comments_count, last_commented
+        ).join(User, Topic.author_id == User.id).outerjoin(
+        Comment, Topic.id == Comment.topic_id).filter(Topic.deleted == False).filter(
+        or_(Topic.author_id == current_user.id, Comment.author_id == current_user.id)).group_by(
+        Topic.id, User.id).order_by(last_commented.desc()).paginate(
+        page_arg, per_page=current_app.config['TOPICS_PER_PAGE'], error_out=True)
+
+    return render_template('participation.html', topics=pagination.items, pagination=pagination)
+
+
+
