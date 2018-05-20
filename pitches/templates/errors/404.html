@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+
+{% block title %}pitches - {{ _('Not Found') }}{% endblock %}
+
+{% block page_content %}
+<div class="page-header">
+    <img class="common-thumbnail" src="{{ url_for('static', filename='img/error-icon.png') }}">
+    <div class="common-header">
+        <h1>{{ _('Not Found') }}</h1>
+    </div>
+</div>
+{% endblock %}
