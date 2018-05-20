@@ -1,0 +1,10 @@
+{{ _('Dear') }} {{ user.username }},
+
+{{ _('Welcome to pitches!') }}
+{{ _('To confirm your account please click on the following link:') }}
+{{ url_for('auth.confirm', token=token, _external=True) }}
+
+{{ _('Sincerely') }},
+{{ _('The pitches Team') }}
+
+{{ _('Note: replies to this email address are not monitored.') }}
