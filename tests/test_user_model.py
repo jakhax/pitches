@@ -2,13 +2,13 @@ import time
 import unittest
 from datetime import datetime
 
-from forum.app import create_app, db
-from forum.models import User, AnonymousUser, Role, Permission
+from pitches.app import create_app, db
+from pitches.models import User, AnonymousUser, Role, Permission
 
 
 class UserModelTestCase(unittest.TestCase):
     def setUp(self):
-        self.app = create_app('testing')
+        self.app = create_app()
         self.app_context = self.app.app_context()
         self.app_context.push()
         db.create_all()
